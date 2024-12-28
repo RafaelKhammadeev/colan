@@ -26,9 +26,10 @@ parseKeyword keyword cmd = string keyword >> return cmd
 -- Парсер для всех команд
 parseCommand :: Parser Command
 parseCommand = 
-    -- Используем try, чтобы сначала проверять более длинные команды
-    try (parseKeyword "DROP" Drop)  -- DROP должна быть проверена первой
-    <|> try (parseKeyword "DUP" Dup)  -- DUP должна быть проверена второй
+    try parseNewWord
+    <|> try parseComment
+    <|> try (parseKeyword "DROP" Drop)
+    <|> try (parseKeyword "DUP" Dup)
     <|> try (parseKeyword "+" Add)
     <|> try (parseKeyword "-" Subtract)
     <|> try (parseKeyword "*" Multiply)
@@ -46,7 +47,25 @@ parseCommand =
     <|> try (parseKeyword "." PrintTop)
     <|> try (parseKeyword "CR" Cr)
     <|> try (parseKeyword "EMIT" Emit)
-    <|> parseNumber  -- Если ничего не подошло, проверяем число
+    <|> parseNumber
+
+parseNewWord :: Parser Command
+parseNewWord = do
+    _ <- string ":"  -- Начало определения нового слова
+    word <- many1 letter  -- Название нового слова
+    commands <- many parseCommand  -- Список команд для нового слова
+    _ <- string ";"  -- Завершающая точка с запятой
+    return (DefineWord word commands)
+
+-- Парсер для комментариев
+parseComment :: Parser Command
+parseComment = do
+    _ <- char '('                   -- Открывающая скобка
+    content <- many (noneOf "()")   -- Текст комментария
+    subComments <- many parseComment -- Рекурсивно обрабатываем вложенные комментарии
+    _ <- char ')'                   -- Закрывающая скобка
+    return $ Comment (content ++ concatMap show subComments)
+
 
 -- Парсер для списка команд
 parseCommands :: Parser [Command]

@@ -4,6 +4,10 @@ module Types where
 import Control.Exception (Exception)
 import Control.Monad.State (StateT)
 import Control.Monad.Trans.Except (ExceptT)
+import qualified Data.Map as Map
+
+-- Делаем EvalError экземпляром класса Exception
+instance Exception EvalError
 
 -- Тип для команд
 data Command
@@ -30,21 +34,22 @@ data Command
   | Emit                     -- Вывод символа
   | PrintString String       -- Вывод строки
   | Key                      -- Ввод символа
+  | DefineWord String [Command]
+  | Comment String          -- Комментарий (может быть вложенным)
   deriving (Show, Eq)
 
 --  | If [Command] [Command]   -- Условный оператор If-Else
 --  | IfDoLoop [Command]       -- Циклическая конструкция
 
 -- Тип для ошибок выполнения
-data EvalError = StackUnderflow | DivisionByZero | InvalidCommand String
+data EvalError 
+  = StackUnderflow
+  | DivisionByZero
+  | InvalidCommand String
+  | InvalidComment
   deriving (Show, Eq)
 
--- Делаем EvalError экземпляром класса Exception
-instance Exception EvalError
-
--- Тип стека — это просто список целых чисел
 type Stack = [Int]
+type Dictionary = Map.Map String [Command]
 
--- Тип вычислительного состояния — это StateT для работы с состоянием (стеком),
--- и IO для выполнения операций ввода/вывода.
-type ColonState = StateT Stack IO -- еще Dictionary туда добавляетс
+type ColonState a = StateT (Stack, Dictionary) IO a

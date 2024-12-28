@@ -3,8 +3,11 @@ module Commands where
 import Types
 import Control.Monad.State
 import Control.Monad.IO.Class (liftIO)
-import Control.Exception (throwIO)
 import Control.Monad.Trans.Except (throwE)
+import qualified Data.Map as Map
+import Data.List (isInfixOf)
+
+-- Утилиты для работы со стеком
 
 splitLastTwo :: [a] -> Maybe ([a], a, a)
 splitLastTwo xs
@@ -19,158 +22,162 @@ splitLastThree xs
   where initList = init xs
 
 -- Функции для выполнения команд
+
 execute :: Command -> ColonState (Either EvalError ())
-execute (PushToStack n) = modify (\stack -> stack ++ [n]) >> return (Right ())
+
+-- Основные команды, работающие со стеком
+
+execute (PushToStack n) = modify (\(stack, dict) -> (stack ++ [n], dict)) >> return (Right ())
 
 execute Add = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [x + y])  -- Складываем последние два элемента и кладем результат в конец стека
+            put (xs ++ [x + y], dict)  -- Складываем последние два элемента и кладем результат в конец стека
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Subtract = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [x - y])
+            put (xs ++ [x - y], dict)
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Multiply = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [x * y])  -- Умножаем последние два элемента и кладем результат в конец стека
+            put (xs ++ [x * y], dict)  -- Умножаем последние два элемента и кладем результат в конец стека
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Divide = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
             if y == 0
                 then return (Left DivisionByZero)  -- Возвращаем ошибку, если делим на ноль
                 else do
-                    put (xs ++ [x `div` y])  -- Делим последние два элемента и кладем результат в конец стека
+                    put (xs ++ [x `div` y], dict)  -- Делим последние два элемента и кладем результат в конец стека
                     return (Right ())  -- Возвращаем успешный результат
-        Nothing -> return (Left StackUnderflow)  -- Возвращаем ошибку, если недостаточно элементов
+        Nothing -> return (Left StackUnderflow)
 
 execute Mod = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> 
             if y == 0 
                 then return (Left DivisionByZero)  -- Ошибка деления на ноль
                 else do
-                    put (xs ++ [x `rem` y])  -- Остаток от деления
+                    put (xs ++ [x `rem` y], dict)  -- Остаток от деления
                     return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Swap = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [y, x])  -- Умножаем последние два элемента и кладем результат в конец стека
+            put (xs ++ [y, x], dict)  -- Умножаем последние два элемента и кладем результат в конец стека
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Dup = do
-    stack <- get
+    (stack, dict) <- get
     case stack of
         [] -> return (Left StackUnderflow)  -- Если стек пустой, возвращаем ошибку
         stack -> do
             let last_elem = last stack  -- Получаем последний элемент
-            put (stack ++ [last_elem])  -- Добавляем его в конец стека
+            put (stack ++ [last_elem], dict)  -- Добавляем его в конец стека
             return (Right ())
 
 execute Drop = do
-    stack <- get
+    (stack, dict) <- get
     case stack of
         [] -> return (Left StackUnderflow)  -- Если стек пустой, возвращаем ошибку
         stack -> do
-            put (init stack)  -- Добавляем его в конец стека
+            put (init stack, dict)  -- Добавляем его в конец стека
             return (Right ())
 
 execute Over = do
-    stack <- get
+    (stack, dict) <- get
     if length stack < 2
         then return (Left StackUnderflow)  -- Ошибка, если элементов меньше 3
         else do
             let secondToLast = last (init stack) -- Предпоследний элемент
-            put (stack ++ [secondToLast]) -- Переставляем элементы
+            put (stack ++ [secondToLast], dict) -- Переставляем элементы
             return (Right ())
 
 execute Rot = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastThree stack of
         Just (rest, x, y, z) -> do
-            put (rest ++ [y, z, x]) -- Поменяли местами последние три элемента
+            put (rest ++ [y, z, x], dict) -- Поменяли местами последние три элемента
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
--- Реализация операций сравнения и булевых операций
+-- Функции для работы с булевыми и логическими операциями
 
 execute Eq = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [if x == y then -1 else 0])
+            put (xs ++ [if x == y then -1 else 0], dict)
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Lt = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [if x < y then -1 else 0])
+            put (xs ++ [if x < y then -1 else 0], dict)
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Gt = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [if x > y then -1 else 0])
+            put (xs ++ [if x > y then -1 else 0], dict)
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute And = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [if x /= 0 && y /= 0 then -1 else 0])
+            put (xs ++ [if x /= 0 && y /= 0 then -1 else 0], dict)
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Or = do
-    stack <- get
+    (stack, dict) <- get
     case splitLastTwo stack of
         Just (xs, x, y) -> do
-            put (xs ++ [if x /= 0 || y /= 0 then -1 else 0])
+            put (xs ++ [if x /= 0 || y /= 0 then -1 else 0], dict)
             return (Right ())
         Nothing -> return (Left StackUnderflow)
 
 execute Invert = do
-    stack <- get
+    (stack, dict) <- get
     case stack of
         [] -> return (Left StackUnderflow)
         xs -> do
             let (initStack, lastElem) = (init xs, last xs)
-            put (initStack ++ [if lastElem == 0 then -1 else 0])
+            put (initStack ++ [if lastElem == 0 then -1 else 0], dict)
             return (Right ())
 
--- Функция для выполнения команд ввода и вывода
+-- Функции для ввода/вывода
 
 execute PrintTop = do
-    stack <- get
+    (stack, dict) <- get
     case stack of
         [] -> return (Left StackUnderflow)  -- Если стек пустой, возвращаем ошибку
         stack -> do
             let upper_item = last stack
             liftIO (print upper_item) >> return (Right ())  -- Печать верхнего элемента стека
-            put $ init stack
+            put (init stack, dict)
             return (Right ())
 
 execute Cr = do
@@ -178,7 +185,7 @@ execute Cr = do
     return (Right ())
 
 execute Emit = do
-    stack <- get
+    (stack, dict) <- get
     case stack of
         [] -> return (Left StackUnderflow)  -- Если стек пуст, ошибка
         stack -> do
@@ -195,5 +202,25 @@ execute (PrintString str) = do
 
 execute Key = do
     c <- liftIO getChar  -- Ожидание ввода символа
-    put [fromEnum c]      -- Кладем код символа в стек
+    modify (\(stack, dict) -> (fromEnum c : stack, dict))  -- Кладем код символа в стек
     return (Right ())
+
+-- Функция для определения новых слов
+execute (DefineWord word commands) = do
+    (stack, dict) <- get
+    let newDict = Map.insert word commands dict
+    put (stack, newDict)  -- Обновляем словарь
+    return (Right ())
+
+execute (Comment content) = do
+    let validation = validateComment (Comment content)
+    case validation of
+        Left err -> return (Left err)  -- Возвращаем ошибку, если комментарий невалиден
+        Right () -> return (Right ())  -- Игнорируем комментарий
+
+-- Проверка валидности комментария
+validateComment :: Command -> Either EvalError ()
+validateComment (Comment content)
+    | "(" `isInfixOf` content || ")" `isInfixOf` content = Left InvalidComment  -- Невалидный, если содержит незакрытые скобки
+    | otherwise = Right ()
+validateComment _ = Right ()  -- Игнорируем другие команды
