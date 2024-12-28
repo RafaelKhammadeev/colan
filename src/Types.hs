@@ -30,9 +30,10 @@ data Command
   | Emit                     -- Вывод символа
   | PrintString String       -- Вывод строки
   | Key                      -- Ввод символа
-  | If [Command] [Command]   -- Условный оператор If-Else
-  | IfDoLoop [Command]       -- Циклическая конструкция
   deriving (Show, Eq)
+
+--  | If [Command] [Command]   -- Условный оператор If-Else
+--  | IfDoLoop [Command]       -- Циклическая конструкция
 
 -- Тип для ошибок выполнения
 data EvalError = StackUnderflow | DivisionByZero | InvalidCommand String

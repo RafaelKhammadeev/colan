@@ -30,17 +30,24 @@ repl :: ColonState ()
 repl = do
     liftIO $ putStr "> "
     input <- liftIO getLine
+
+    -- Выводим введенную команду
+    liftIO $ putStrLn $ "Raw input: " ++ input
+
     case input of
         "quit" -> liftIO $ putStrLn "Goodbye!"
         _      -> do
             -- Парсинг команд
-            case parse parseCommands "" input of
+            let parseResult = parse parseCommands "" input
+
+            -- Выводим результат парсинга
+            liftIO $ putStrLn $ "Parse result: " ++ show parseResult   
+
+            case parseResult of
                 Left err -> liftIO $ print err  -- Ошибка парсинга
+
                 Right commands -> do
-                    -- Преобразуем список команд в список строк
-                    let commandStrings = map show commands
-                    -- Выполнение программы
-                    result <- runColonProgram commandStrings  -- Теперь передаем список строк
+                    result <- runColonProgram commands  -- Теперь передаем список строк
                     case result of
                         Left evalError -> liftIO $ print evalError
                         Right _ -> liftIO $ putStrLn "ok"
