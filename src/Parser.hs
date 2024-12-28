@@ -1,34 +1,53 @@
--- src/Parser.hs
 module Parser where
 
-import Types
+import Text.Parsec
+import Text.Parsec.String (Parser)
+import Text.Parsec.Char (digit, string, spaces, letter, anyChar)
+import Text.Parsec.Combinator (many1, skipMany1)
 import Data.Char (isDigit)
+import Types (Command(..))
+import Control.Monad (void)
+import Control.Monad.IO.Class (liftIO)
+import Debug.Trace (trace)
 
--- Функция для парсинга команд
-parseCommand :: String -> Command
-parseCommand "+" = Add
-parseCommand "-" = Subtract
-parseCommand "*" = Multiply
-parseCommand "/" = Divide
-parseCommand "MOD" = Mod
-parseCommand "SWAP" = Swap
-parseCommand "DUP" = Dup
-parseCommand "DROP" = Drop
-parseCommand "OVER" = Over
-parseCommand "ROT" = Rot
-parseCommand "="    = Eq
-parseCommand "<"    = Lt
-parseCommand ">"    = Gt
-parseCommand "AND"  = And
-parseCommand "OR"   = Or
-parseCommand "INVERT" = Invert
-parseCommand "."           = PrintTop
-parseCommand "CR"          = Cr
-parseCommand "EMIT"        = Emit
-parseCommand ('.':xs)      = PrintString xs  -- Обработка строк
-parseCommand "KEY"         = Key
+parseNumber :: Parser Command
+parseNumber = do
+    num <- many1 digit  -- Считываем одно или более цифр
+    return (PushToStack (read num))  -- Преобразуем строку в число и возвращаем команду
 
-parseCommand s
-  | head s == '-' && all isDigit (tail s) = PushToStack (read s)  -- Обрабатываем отрицательные числа
-  | all isDigit s = PushToStack (read s)  -- Если это число, то команда Push с этим числом
-  | otherwise     = Invalid s      -- Если команда не распознана, то Invalid с ошибкой
+-- Парсер для пробелов
+parseSpaces :: Parser ()
+parseSpaces = void $ skipMany1 spaces  -- Пропускаем все пробелы
+
+-- Парсер строковых команд
+parseKeyword :: String -> Command -> Parser Command
+parseKeyword keyword cmd = string keyword >> return cmd
+
+-- Парсер для всех команд
+parseCommand :: Parser Command
+parseCommand = parseSpaces *> (
+    parseNumber  -- Парсинг числа
+    <|> parseKeyword "+" Add
+    <|> parseKeyword "-" Subtract
+    <|> parseKeyword "*" Multiply
+    <|> parseKeyword "/" Divide
+    <|> parseKeyword "MOD" Mod
+    <|> parseKeyword "SWAP" Swap
+    <|> parseKeyword "DUP" Dup
+    <|> parseKeyword "DROP" Drop
+    <|> parseKeyword "OVER" Over
+    <|> parseKeyword "ROT" Rot
+    <|> parseKeyword "=" Eq
+    <|> parseKeyword "<" Lt
+    <|> parseKeyword ">" Gt
+    <|> parseKeyword "AND" And
+    <|> parseKeyword "OR" Or
+    <|> parseKeyword "INVERT" Invert
+    <|> parseKeyword "." PrintTop
+    <|> parseKeyword "CR" Cr
+    <|> parseKeyword "EMIT" Emit
+    )
+
+-- Парсер для списка команд
+parseCommands :: Parser [Command]
+parseCommands = many1 parseCommand

@@ -10,6 +10,8 @@ import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (catch, SomeException)
+import Text.Parsec
+import Text.Parsec.String (Parser)
 
 -- Добавляем функцию для отображения стека в удобочитаемом формате
 printStack :: ColonState ()
@@ -31,11 +33,17 @@ repl = do
     case input of
         "quit" -> liftIO $ putStrLn "Goodbye!"
         _      -> do
-            let commands = words input
-            result <- runColonProgram commands  -- Выполняем команды
-            case result of
-                Left err  -> liftIO $ putStrLn $ show err  -- Отображаем ошибку
-                Right _   -> liftIO $ putStrLn "ok"  -- Операция успешна
+            -- Парсинг команд
+            case parse parseCommands "" input of
+                Left err -> liftIO $ print err  -- Ошибка парсинга
+                Right commands -> do
+                    -- Преобразуем список команд в список строк
+                    let commandStrings = map show commands
+                    -- Выполнение программы
+                    result <- runColonProgram commandStrings  -- Теперь передаем список строк
+                    case result of
+                        Left evalError -> liftIO $ print evalError
+                        Right _ -> liftIO $ putStrLn "ok"
             printStack  -- Печатаем текущий стек
             repl
 
