@@ -53,6 +53,9 @@ parseNewWord :: Parser Command
 parseNewWord = do
     _ <- string ":"  -- Начало определения нового слова
     word <- many1 letter  -- Название нового слова
+
+    trace ("Parsed digits: " ++ word) (return ())
+
     commands <- many parseCommand  -- Список команд для нового слова
     _ <- string ";"  -- Завершающая точка с запятой
     return (DefineWord word commands)
@@ -62,6 +65,8 @@ parseComment :: Parser Command
 parseComment = do
     _ <- char '('                   -- Открывающая скобка
     content <- many (noneOf "()")   -- Текст комментария
+
+    trace ("Parsed digits: " ++ content) (return ())
     subComments <- many parseComment -- Рекурсивно обрабатываем вложенные комментарии
     _ <- char ')'                   -- Закрывающая скобка
     return $ Comment (content ++ concatMap show subComments)
@@ -69,4 +74,4 @@ parseComment = do
 
 -- Парсер для списка команд
 parseCommands :: Parser [Command]
-parseCommands = many parseCommand
+parseCommands = many (spaces >> parseCommand)

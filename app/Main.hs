@@ -3,16 +3,9 @@ module Main where
 import Types
 import Parser
 import Interpreter
-import Commands
-import System.IO
-import Debug.Trace
 import Control.Monad.State
-import Control.Monad.Except
-import Control.Monad.IO.Class (liftIO)
-import Control.Exception (catch, SomeException)
 import Text.Parsec
 import qualified Data.Map as Map
-import Text.Parsec.String (Parser)
 
 -- Добавляем функцию для отображения стека в удобочитаемом формате
 printStack :: ColonState ()
@@ -55,11 +48,11 @@ repl = do
                     liftIO $ print err  -- Ошибка парсинга
 
                     -- Если парсинг не удался, проверяем слово в словаре
-                    (stack, dict) <- get  -- Получаем текущий стек и словарь
+                    (_, dict) <- get  -- Получаем текущий стек и словарь
                     case Map.lookup input dict of
-                        Just commands -> do
+                        Just dict_command -> do
                             -- Если слово есть в словаре, выполняем соответствующие команды
-                            result <- runColonProgram commands
+                            result <- runColonProgram dict_command
                             case result of
                                 Left evalError -> liftIO $ print evalError
                                 Right _ -> liftIO $ putStrLn "ok"
