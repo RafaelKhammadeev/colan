@@ -3,7 +3,6 @@ module Interpreter where
 
 import Types
 import Commands
-import Parser
 import Debug.Trace
 import Control.Monad.IO.Class (liftIO)
 import Text.Parsec
@@ -14,7 +13,8 @@ import Text.Parsec.String (Parser)
 runColonProgram :: [Command] -> ColonState (Either EvalError ())
 runColonProgram [] = return (Right ())  -- Если команды кончились, завершаем программу
 runColonProgram (cmd:cmds) = do
-    liftIO $ putStrLn $ "Executing command: " ++ show cmd
+    -- liftIO $ putStrLn $ "Executing command: " ++ show cmd
+    
     result <- execute cmd  -- Выполняем команду
 
     case result of

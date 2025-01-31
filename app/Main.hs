@@ -41,28 +41,28 @@ repl = do
             let parseResult = parse parseCommands "" input
 
             -- Выводим результат парсинга
-            liftIO $ putStrLn $ "Parse result: " ++ show parseResult   
+            -- liftIO $ putStrLn $ "Parse result: " ++ show parseResult   
 
             case parseResult of
                 Left err -> do
                     liftIO $ print err  -- Ошибка парсинга
 
-                    -- Если парсинг не удался, проверяем слово в словаре
+                Right commands -> do
                     (_, dict) <- get  -- Получаем текущий стек и словарь
                     case Map.lookup input dict of
                         Just dict_command -> do
+                            liftIO $ putStrLn $ "Dict command: " ++ show dict_command
                             -- Если слово есть в словаре, выполняем соответствующие команды
                             result <- runColonProgram dict_command
                             case result of
                                 Left evalError -> liftIO $ print evalError
                                 Right _ -> liftIO $ putStrLn "ok"
-                        Nothing -> liftIO $ putStrLn "Unknown command or word."  -- Если слова нет в словаре
-                Right commands -> do
-                    -- Если парсинг успешен, выполняем команду
-                    result <- runColonProgram commands
-                    case result of
-                        Left evalError -> liftIO $ print evalError
-                        Right _ -> liftIO $ putStrLn "ok"
+                        Nothing -> do
+                            -- Если команды нет в словаре, выполняем распарсенные команды
+                            result <- runColonProgram commands
+                            case result of
+                                Left evalError -> liftIO $ print evalError
+                                Right _ -> liftIO $ putStrLn "ok"
 
             -- Печатаем текущий стек
             printStack

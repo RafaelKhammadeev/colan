@@ -49,15 +49,21 @@ parseCommand =
     <|> try (parseKeyword "EMIT" Emit)
     <|> parseNumber
 
+-- Функция для парсинга символов, разрешённых в именах слов
+validWordChar :: Parser Char
+validWordChar = alphaNum <|> oneOf "?-_"
+
 parseNewWord :: Parser Command
 parseNewWord = do
     _ <- string ":"  -- Начало определения нового слова
-    word <- many1 letter  -- Название нового слова
 
-    trace ("Parsed digits: " ++ word) (return ())
+    spaces
+    word <- many1 validWordChar  -- Название нового слова
+    -- trace ("Parsed word: " ++ word) (return ()) - проверка парсинга слова
+    spaces
 
-    commands <- many parseCommand  -- Список команд для нового слова
-    _ <- string ";"  -- Завершающая точка с запятой
+    commands <- manyTill (spaces >> parseCommand) (try (spaces >> char ';'))
+    -- trace ("Parsed commands: " ++ show commands) (return ()) - провека парсинга команд
     return (DefineWord word commands)
 
 -- Парсер для комментариев

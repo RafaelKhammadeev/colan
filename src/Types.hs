@@ -35,7 +35,7 @@ data Command
   | PrintString String       -- Вывод строки
   | Key                      -- Ввод символа
   | DefineWord String [Command]
-  | Comment String          -- Комментарий (может быть вложенным)
+  | Comment String           -- Комментарий (может быть вложенным)
   deriving (Show, Eq)
 
 --  | If [Command] [Command]   -- Условный оператор If-Else
