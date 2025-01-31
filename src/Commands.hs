@@ -21,6 +21,14 @@ splitLastThree xs
   | otherwise      = Nothing
   where initList = init xs
 
+findMatchingBranch :: Either Int Double -> [(Either Int Double, [Command])] -> (Maybe [Command], [(Either Int Double, [Command])])
+findMatchingBranch _ [] = (Nothing, [])
+findMatchingBranch value ((branchValue, actions):rest) =
+    if value == branchValue
+    then (Just actions, rest)
+    else let (matched, remaining) = findMatchingBranch value rest
+         in (matched, (branchValue, actions) : remaining)
+
 -- Функции для выполнения команд
 
 execute :: Command -> ColonState (Either EvalError ())
@@ -32,36 +40,45 @@ execute cmd = case cmd of
     Add -> do
         (stack, dict) <- get
         case splitLastTwo stack of
-            Just (xs, x, y) -> do
-                put (xs ++ [x + y], dict)  -- Складываем последние два элемента и кладем результат в конец стека
-                return (Right ())
+            Just (xs, Left x, Left y) -> put (xs ++ [Left (x + y)], dict) >> return (Right ())
+            Just (xs, Right x, Right y) -> put (xs ++ [Right (x + y)], dict) >> return (Right ())
+            Just (xs, Left x, Right y) -> put (xs ++ [Right (fromIntegral x + y)], dict) >> return (Right ())
+            Just (xs, Right x, Left y) -> put (xs ++ [Right (x + fromIntegral y)], dict) >> return (Right ())
             Nothing -> return (Left StackUnderflow)
 
     Subtract -> do
         (stack, dict) <- get
         case splitLastTwo stack of
-            Just (xs, x, y) -> do
-                put (xs ++ [x - y], dict)
-                return (Right ())
+            Just (xs, Left x, Left y) -> put (xs ++ [Left (x - y)], dict) >> return (Right ())
+            Just (xs, Right x, Right y) -> put (xs ++ [Right (x - y)], dict) >> return (Right ())
+            Just (xs, Left x, Right y) -> put (xs ++ [Right (fromIntegral x - y)], dict) >> return (Right ())
+            Just (xs, Right x, Left y) -> put (xs ++ [Right (x - fromIntegral y)], dict) >> return (Right ())
             Nothing -> return (Left StackUnderflow)
 
     Multiply -> do
         (stack, dict) <- get
         case splitLastTwo stack of
-            Just (xs, x, y) -> do
-                put (xs ++ [x * y], dict)  -- Умножаем последние два элемента и кладем результат в конец стека
-                return (Right ())
+            Just (xs, Left x, Left y) -> put (xs ++ [Left (x * y)], dict) >> return (Right ())
+            Just (xs, Right x, Right y) -> put (xs ++ [Right (x * y)], dict) >> return (Right ())
+            Just (xs, Left x, Right y) -> put (xs ++ [Right (fromIntegral x * y)], dict) >> return (Right ())
+            Just (xs, Right x, Left y) -> put (xs ++ [Right (x * fromIntegral y)], dict) >> return (Right ())
             Nothing -> return (Left StackUnderflow)
 
     Divide -> do
         (stack, dict) <- get
         case splitLastTwo stack of
-            Just (xs, x, y) -> do
-                if y == 0
-                    then return (Left DivisionByZero)  -- Возвращаем ошибку, если делим на ноль
-                    else do
-                        put (xs ++ [x `div` y], dict)  -- Делим последние два элемента и кладем результат в конец стека
-                        return (Right ())  -- Возвращаем успешный результат
+            Just (xs, Left x, Left y) -> 
+                if y == 0 then return (Left DivisionByZero) 
+                else put (xs ++ [Left (x `div` y)], dict) >> return (Right ())
+            Just (xs, Right x, Right y) -> 
+                if y == 0 then return (Left DivisionByZero) 
+                else put (xs ++ [Right (x / y)], dict) >> return (Right ())
+            Just (xs, Left x, Right y) -> 
+                if y == 0 then return (Left DivisionByZero) 
+                else put (xs ++ [Right (fromIntegral x / y)], dict) >> return (Right ())
+            Just (xs, Right x, Left y) -> 
+                if y == 0 then return (Left DivisionByZero) 
+                else put (xs ++ [Right (x / fromIntegral y)], dict) >> return (Right ())
             Nothing -> return (Left StackUnderflow)
 
     Mod -> do
@@ -215,6 +232,96 @@ execute cmd = case cmd of
         case validation of
             Left err -> return (Left err)  -- Возвращаем ошибку, если комментарий невалиден
             Right () -> return (Right ())  -- Игнорируем комментарий
+
+    IfElse trueBranch falseBranch -> do
+        (stack, dict) <- get
+        case stack of
+            (x:xs) -> do
+                put (xs, dict)  -- Убираем проверяемое значение
+                if x /= 0 
+                    then mapM_ execute trueBranch  -- Если True, выполняем первую часть
+                    else mapM_ execute falseBranch  -- Если False, выполняем вторую часть
+                return (Right ())
+            _ -> return (Left StackUnderflow)
+
+    Loop commands -> do
+        (stack, dict) <- get
+        case stack of
+            (end:start:xs) -> do
+                put (xs, dict)  -- Убираем границы цикла
+                loopRun start end commands
+                return (Right ())
+            _ -> return (Left StackUnderflow)
+      where
+        loopRun i end cmds
+            | i >= end = return ()  -- Выход из цикла
+            | otherwise = do
+                modify (\(s, d) -> (s ++ [i], d))  -- Кладём i в стек
+                mapM_ execute cmds  -- Выполняем тело цикла
+                loopRun (i+1) end cmds  -- Увеличиваем i и повторяем
+
+    PrintLiteralString str -> do
+        liftIO (putStr (str ++ " "))  -- Выводим строку без перевода строки
+        return (Right ())
+
+    execute cmd = case cmd of
+    -- ... другие команды ...
+
+    Begin -> do
+        (stack, dict) <- get
+        put (0 : stack, dict)  -- Добавляем 0 на стек для отслеживания состояния цикла
+        return (Right ())
+
+    Until -> do
+        (stack, dict) <- get
+        case stack of
+            (0:rest) -> do
+                put (rest, dict)  -- Убираем 0, если условие не выполнено
+                return (Right ())
+            (1:rest) -> do
+                put (rest, dict)  -- Убираем 1, если условие выполнено
+                return (Right ())
+            _ -> return (Left StackUnderflow)  -- Если стек пустой, возвращаем ошибку
+
+    FtoS -> do
+        (stack, dict) <- get
+        case stack of
+            (Right v:xs) -> put (Left (floor v) : xs, dict) >> return (Right ())  -- Преобразование вещественного в целое
+            _ -> return (Left StackUnderflow)
+
+    Leave -> do
+        -- Выход из цикла: просто очищаем стек и возвращаемся
+        (stack, dict) <- get
+        put ([], dict)  -- Можно добавить логику для сохранения состояния, если это необходимо
+        return (Right ())
+
+    PlusLoop -> do
+        (stack, dict) <- get
+        case stack of
+            (n:xs) -> do
+                let newCount = n + 1
+                put (newCount : xs, dict)  -- Увеличиваем счетчик
+                return (Right ())
+            _ -> return (Left StackUnderflow)
+    
+    Case branches defaultAction -> do
+        (stack, dict) <- get
+        case stack of
+            (value:xs) -> do
+                let (matchedAction, remainingBranches) = findMatchingBranch value branches
+                case matchedAction of
+                    Just actions -> do
+                        put (xs, dict)  -- Убираем значение из стека
+                        mapM_ execute actions  -- Выполняем действия
+                    Nothing -> do
+                        put (defaultAction ++ xs, dict)  -- Выполняем действия по умолчанию
+                return (Right ())
+            _ -> return (Left StackUnderflow)
+
+    EndCase -> return (Right ())  -- Просто возвращаем, когда встречаем ENDCASE
+
+    EndOf -> return (Right ())  -- Просто возвращаем, когда встречаем ENDOF
+
 
 -- Проверка валидности комментария
 validateComment :: Command -> Either EvalError ()
